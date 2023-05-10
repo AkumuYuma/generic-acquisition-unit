@@ -1,0 +1,18 @@
+
+Modules: 
+  Modulo1: !CGenericModuleConfiguration
+    moduleType: "Modulo di prova"
+    inputDataFlows: [flusso1, flusso2]
+    outputDataFlows: []
+
+  Modulo2: !CCustomModuleConfiguration
+    moduleType: "Modulo di prova2"
+    outputDataFlows: [flusso3, flusso4]
+    inputDataFlows: [flusso1]
+    parametro_prova: 3
+
+  Modulo3: !CCustomModuleConfiguration
+    moduleType: "Modulo di prova2"
+    outputDataFlows: [flusso3, flusso4]
+    inputDataFlows: [flusso1]
+    altro_parametro_prova: {hello: mama}

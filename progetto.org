@@ -1,0 +1,189 @@
+#+TITLE: Appunti progetto
+#+author: Emanuele Fiorente
+
+* Introduzione
+
+Questo file conterrà tutti gli appunti di progetto per l'unità di acquisizione generica.
+
+
+* Informazioni Generiche:
+** Python version: 3.11.3
+** Librerie installate:
+- Pip
+- Overrides (per segnare i metodi come override)
+- ruamel.yaml
+
+
+* Architettura:
+
+** Configurazione:
+
+*** IConfigurationObject: Classe astratta per rappresentare le configurazioni di un oggetto.
+*Importante*: Le classi derivate dovranno aggiungere il decoratore @yaml_object(CConfigurationLoader.yamlParser) e definire una variabile statica di nome yaml_tag="!<NomeClasse>".
+Se yaml_tag non è definito, non sarà possibile fare IO con yaml
+public:
+    Node to_yaml(cls, Representer representer, Node node) = 0 -> Serializza la classe in yaml.
+        - Il representer è l'oggetto che costruisce il nodo
+        (Nota: I diversi tipi di nodo (ScalarNode, BinaryNode, SequentialNode) sono tutti derivati dalla classe Node.)
+        - Il nodo è l'oggetto che viene avvalorato
+    IConfigurationObject from_yaml(cls, Constructor constructor, Node node) = 0 -> Deserializza la classe dal nodo yaml.
+        - Il nodo è quello letto dal file.
+        - constructor è l'oggetto che costruisce l'oggetto in maniera diversa (ce ne sono di diversi tipi tipo construct_mapping)
+    (class method) CommentedMap buildCommentedMapFromNode(cls, Node node) = 0 -> Crea una CommentedMap in base alle info contenute nel nodo
+
+
+*** CMappingConfigurationObject: Classe base per rappresentare le configurazioni di tipo mappa (praticamente quelle che useremo)
+Deriva da IConfigurationObject.
+public:
+    Node to_yaml(cls, Representer representer, Node node) override -> Implementazione generica per qualsiasi oggetto mapping. Il modo di rappresentare l'oggetto
+                                                                      viene deciso tramite l'override del metodo buildCommentedMapFromNode(). In questo modo ogni classe va a definire i suoi campi
+
+    IConfigurationObject from_yaml(cls, Constructor constructor, Node node) override -> Implementazione generica per qualsiasi oggetto mapping. Questa è fatta in maniera da
+                                                                                        chiamare il costruttore passando la mappa avvalorata dal nodo come kwargs. In questo modo
+                                                                                        solo i parametri che effettivamente ci sono nel costruttore verranno letti.
+
+
+*** CGenericModuleConfiguration: Classe concreta che rappresenta la configurazione generica di un modulo
+Deriva da CMappingConfigurationObject
+
+public static:
+    - yaml_tag = "!CGenericModuleConfiguration"
+
+properties:
+    - str moduleType -> Tipo di modulo (nome della classe). Sarà usato per istanziare dinamicamente l'oggetto in base al tipo
+    - list<str (?)> inputDataFlows -> Lista di nomi di flussi in input (decidere se ha senso usare i nomi)
+    - list<str (?)> outputDataFlows -> Same for output
+
+public:
+    (class method) CommentedMap buildCommentedMapFromNode(Node node) override -> Crea una CommentedMap estraendo i campi moduleType, inputDataFlows e outputDataFlows dal nodo.
+
+
+La rappresentazione yaml è la seguente:
+#+NAME: CGenericModuleConfiguration Representation
+#+BEGIN_SRC yaml
+<module-name> !CGenericModuleConfiguration
+  moduleType: <module-class-name>
+  inputDataFlows: [<name-first-input-flow>, <name-second-input-flow>]
+  outputDataFlows: [<name-first-output-flow>, <name-second-output-flow>]
+#+END_SRC
+
+
+*** CCustomModuleConfiguration: Classe concreta che rappresenta le configurazione di un modulo custom qualsiasi
+Deriva da CGenericModuleConfiguration.
+
+Questa classe permette di create una configurazione personalizzata in base ai parametri scelti nel costruttore. Allo stesso tempo quando legge da file, va a creare un oggetto
+configurazione che ha i campi corrispondenti ai nomi che stanno nel file yaml.
+In questo modo però non va bene perché così leggo indifferentemente tutti i campi
+
+Soluzione:
+    - Dato che la lettura del file di config avviene una sola volta allo start dell'applicazione, questa classe si prenderà tutti i parametri che stanno scritti nel file yaml.
+      Ad ogni modulo, poi, verrà assegnato il puntatore alla configurazione e verrà fatto un controllo a posteriori nella setup del modulo.
+      Nella setup il modulo setta i parametri che gli servono, se non ci sono tra gli attributi della classe di config, vengono aggiunti e aggiunti al file di config, tutti gli
+      attributi in più che sono stati letti da yaml ma che al modulo non servono vengono cancellati sia dalla classe che dalla sezione nel file.
+      Questo è come fare una costruzione in due passaggi: Creo con tutti i parametri che stanno nel file, e seleziono quelli che mi servono a posteriori, nell'inizializzazione dell'oggetto
+                                                          client della classe.
+
+public:
+    selectNeededParameters(Dict[str, any] neededParams) -> Lascia tra i parametri della classe solo quelli che sono contenuti nella lista passata come input. Tutti gli altri vengono
+                                                        eliminati sia dalla classe che dal file di configurazione. Il dizionario è fatto in questo modo <nome-parametro, valore-default>
+                                                        *Questo metodo deve essere sempre chiamato da una classe che impostazioni in fase di setup, quindi in maniera SINCRONA!*
+
+
+
+
+** Settings:
+Le impostazioni sono tutte gestite tramite file yml.
+*Importante*: Trovare modo di leggere e scrivere file senza caricarlo tutto in memoria in una botta, altrimenti sarà lentissimo
+
+Bisogna fare delle classi modello che descrivano gli oggetti. Tipo ModuleDescriptor che è una dataclass con ModuleType, Input Data Flows, eccetera
+e poi quando devi aggiungere delle settings specifiche cambi l'attributo \__slots__.
+
+Bisogna capire se la configurazione si può cambiare a runtime o con yaml è un'operazione troppo lenta.
+
+*** IConfigurationFile: Classe astratta per la lettura e interpretazione di un file di configurazione yaml.
+
+public:
+    loadConfigurationFile(str filePath) = 0 -> Apre e carica in memoria un file di configurazione
+    IConfigurationSection getConfigurationSection(str configSectionName) = 0 -> Restituisce una sezione di configurazione (se non esiste la crea)
+
+*** CConfigurationFile: Classe concreta per la lettura di un file di configurazione
+Deriva da: IConfigurationFile
+
+private:
+    str _configFileName -> Nome del file di config
+    dict _configurationFile -> File di configurazione
+
+public:
+    loadConfigurationFile(str filePath) override (da IConfigurationFile) -> Implementazione
+    IConfigurationSection getConfigurationSection(str configSectionName) override (da IConfigurationFile) -> Implementazione
+
+
+*** IConfigurationSection: Classe astratta per la gestione di una sezione della configurazione
+
+public:
+    any readParameter(str parameterName, any parameterDefault) -> Legge un parametro dalla sezione e lo restituisce, se il parametro non viene trovato o è vuoto, lo crea
+                                                                  e mette il valore di default.
+
+
+*** ISettings: Classe che legge le impostazioni di una certa sezione.
+Questa classe deve beccarsi una sezione di configurazione e una lista di campi da leggere in fase di costruzione e tenersi in pancia i valori letti da quella sezione con quei nomi.
+Andrà a creare delle properties in maniera dinamica (*vedi se si può fare*).
+Oppure con un bel factory fai le implementazioni.
+
+public:
+    readConfigurationSection() = 0 -> Legge da configurazione i campi impostati in fase di creazione
+
+
+
+
+** Moduli:
+
+*** ICyclicThread: Classe astratta che gestisce un thread circolare.
+Deriva da: threading.Thread
+
+private:
+    stop() override (da Thread) -> Stoppa il thread circolare
+    run() override (da Thead) -> Esegue il metodo _process in maniera ciclica finché il thread non viene stoppato
+protected:
+    _process() = 0 -> Virtuale pura. Il metodo da eseguire a loop.
+
+*** IModule: Classe astratta che rappresenta l'interfaccia di un modulo generico.
+Deriva da: ICyclicThread
+
+public:
+   setup() = 0 -> Azioni da eseguire prima che il modulo venga startato. Check della correttezza delle impostazioni. Nel caso solleva eccezioni SETUP_ERROR
+   initModule() = 0 -> Metodo che chiama internamente la start() (di threading.Thread) per inizializzare il modulo.
+   termModule() = 0 -> Metodo che chiama internamente la stop() (di ICyclicThread) per stoppare il modulo
+
+*** IGenericModule: Classe base per i moduli generici.
+Deriva da: IModule
+
+public:
+   __init__(str moduleName) -> Costruttore
+   initModule() override (da IModule) -> implementazione
+   termModule() override (da IModule) -> implementazione
+   setConfigurationSection(IConfigurationSection section) -> Setta la sezione di configurazione con la quale verranno lette le impostazioni generiche dei moduli
+                                                             *Da chiamare prima di moduleInitialize()*
+   moduleInitialize() -> Fa le seguenti operazioni in questo ordine:
+                         1) _settings.readConfigurationSection() -> Carica le configurazioni generiche nelle settings
+                         2) _setInputDataFlows/_setOutputDataFlows -> Setta i flussi in input/output usando le info lette dalle settings
+                         3) setup() -> Chiama la setup che va implementata nelle classi figlie
+
+protected (methods):
+   _setInputDataFlows(List<DataFlow> inputDataFlowList) -> Setta la lista di data Flow in input (letta da configurazione)
+   _setOutputDataFlows(List<DataFlow> outputDataFlowList) -> Setta la lista di data Flow in output (letta da configurazione)
+
+private (methods):
+   _readConfigurationSection() -> Legge la parte generica della configurazione
+
+
+private (fields):
+    IConfigurationSection _section -> Sezione di config del modulo
+    List<DataFlow> _inputDataFlow -> lista di Data Flow in input
+    List<DataFlow> _outputDataFlow -> lista di Data Flow in output
+    str _moduleType -> Nome della classe che indica il tipo di modulo (impostato in fase di creazione)
+    str _moduleName -> Identificativo del modulo (impostato in fase di creazione, è il nome della sezione nella configurazione)
+    ISettings _settings -> Contiene le info generiche del modulo
+
+
+*** <Generic processing module>: Modulo implementato dall'utente.
