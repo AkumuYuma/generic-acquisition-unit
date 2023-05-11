@@ -4,12 +4,12 @@ from typing import List, Dict
 from ruamel.yaml import yaml_object, Node
 from ruamel.yaml.comments import CommentedMap
 
-from Configuration.Concretes.CGenericModuleConfiguration import CGenericModuleConfiguration
+from Configuration.Concretes.CGenericModuleConfigurationObject import CGenericModuleConfigurationObject
 from SettingsLoader.Concretes.CConfigurationLoader import CConfigurationLoader
 
 @yaml_object(CConfigurationLoader.yamlParser)
 @final 
-class CCustomModuleConfiguration(CGenericModuleConfiguration): 
+class CCustomModuleConfigurationObject(CGenericModuleConfigurationObject): 
     """This class represents the configuration for a generic custom module. It can be instantiated with an arbitrary 
     set of parameters. Those parameters will be initialized as class field. 
     If this class is insantiated from outside (read from yaml configuration), each parameter in the yaml node will correspond to 
@@ -18,7 +18,7 @@ class CCustomModuleConfiguration(CGenericModuleConfiguration):
     parameters and their default values. 
     """
     
-    yaml_tag = "!CCustomModuleConfiguration"
+    yaml_tag = "!CCustomModuleConfigurationObject"
     
     def __init__(self, moduleType: str, inputDataFlows: List[str], outputDataFlows: List[str], **kwargs) -> None:
         super().__init__(moduleType, inputDataFlows, outputDataFlows)

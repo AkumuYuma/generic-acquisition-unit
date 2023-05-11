@@ -1,12 +1,13 @@
 from io import FileIO
 import os
-import sys
+from typing import Dict
 
 from ruamel.yaml import YAML
 from overrides import override
 
 from SettingsLoader.Interfaces.IConfigurationLoader import IConfigurationLoader
 from Configuration.Interfaces.IConfigurationObject import IConfigurationObject
+from Configuration.Concretes.CConcreteUnitConfiguration import CConcreteUnitConfiguration
 
 class CConfigurationLoader(IConfigurationLoader): 
     yamlParser = YAML() 
@@ -20,18 +21,22 @@ class CConfigurationLoader(IConfigurationLoader):
         self._configFullPath : str = configFullPath
 
         self._stream : FileIO = self._openAndReturnFileStream(self._configFullPath)
-        self._configuration : any = None # The configuration object, loaded with loadConfiguration
+        self._configurationStructure : CConcreteUnitConfiguration = CConcreteUnitConfiguration()
+        self._configuration : Dict[str, any] = {}
     
     def __del__(self) -> None: 
         self._stream.close()
 
     @property 
-    def configuration(self) -> any: return self._configuration
+    def configuration(self) -> CConcreteUnitConfiguration: return self._configuration
 
     @override
     def loadConfiguration(self) -> None: 
+        self._configurationStructure.loadStructure()
         if self._stream is not None: 
             self._configuration = self.yamlParser.load(self._stream)
+            if not self._configurationStructure.checkConfiguration(self._configuration): 
+                raise IOError("The configuration structure is incorrect")
     
     def dumpObject(self, objectToDump: IConfigurationObject) -> None: 
         self.yamlParser.dump(objectToDump, self._stream)

@@ -8,14 +8,14 @@ from Configuration.Concretes.CMappingConfigurationObjectBase import CMappingConf
 from SettingsLoader.Concretes.CConfigurationLoader import CConfigurationLoader
 
 @yaml_object(CConfigurationLoader.yamlParser)
-class CGenericModuleConfiguration(CMappingConfigurationObjectBase): 
+class CGenericModuleConfigurationObject(CMappingConfigurationObjectBase): 
     """The Generic Module Configuration Object. It implements the base configuration needed from any module:\n
     -moduleType: The name of the class of the module\n
     -inputDataFlows
     -outputDataFlows
     """
 
-    yaml_tag = '!CGenericModuleConfiguration'
+    yaml_tag = '!CGenericModuleConfigurationObject'
 
     def __init__(self, moduleType: str, inputDataFlows: List[str], outputDataFlows: List[str]) -> None:
         super().__init__()
