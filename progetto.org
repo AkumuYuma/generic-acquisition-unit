@@ -88,6 +88,22 @@ public:
                                                         eliminati sia dalla classe che dal file di configurazione. Il dizionario è fatto in questo modo <nome-parametro, valore-default>
                                                         *Questo metodo deve essere sempre chiamato da una classe che impostazioni in fase di setup, quindi in maniera SINCRONA!*
 
+*** IConfigurationStructure: Classe astratta che determina la struttura della configurazione yaml. 
+ 
+public: 
+    void loadStructure() = 0 -> Carica la struttura della configurazione. 
+    any getStructure() = 0 -> Property, restituisce la configurazione 
+    
+*** CMapConfiguration: Classe base per una configurazione con struttura a mappa. 
+
+public: 
+    void loadStructure() = 0 -> Carica la struttura in un dizionario interno. 
+    Dict[str, any] getStructure() override -> Property, restituisce la struttura
+   
+protected: 
+    Dict[str, any] _structure 
+
+*** CConcreteUnitConfiguration: Classe concreta per la configurazione dell'unità. 
 
 
 
